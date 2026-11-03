@@ -34,6 +34,7 @@ import logging
 import math
 import re
 from collections.abc import Callable, Sequence
+from types import ModuleType
 from typing import Any, Optional, TYPE_CHECKING
 
 import torch._C
@@ -93,10 +94,14 @@ try:
 except ModuleNotFoundError:
     np = None  # type: ignore[assignment]
 
-try:
-    from torch.distributed.fsdp._fully_shard import _fsdp_param_group
-except ModuleNotFoundError:
-    _fsdp_param_group = None  # type: ignore[assignment]
+
+@functools.cache
+def _get_fsdp_param_group() -> ModuleType | None:
+    try:
+        from torch.distributed.fsdp._fully_shard import _fsdp_param_group
+    except ModuleNotFoundError:
+        return None
+    return _fsdp_param_group
 
 
 if TYPE_CHECKING:
@@ -464,7 +469,7 @@ class TorchCtxManagerClassVariable(BaseTorchVariable):
                 tx, args[0].as_python_constant()
             )
         elif (
-            _fsdp_param_group is not None
+            (_fsdp_param_group := _get_fsdp_param_group()) is not None
             and self.value is _fsdp_param_group.FSDPParamGroup.use_training_state
         ):
             assert len(args) == 2

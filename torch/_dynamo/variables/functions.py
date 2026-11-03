@@ -31,7 +31,7 @@ import traceback
 import types
 from collections import namedtuple
 from collections.abc import Callable, Sequence
-from types import CellType, FunctionType
+from types import CellType, FunctionType, ModuleType
 from typing import Any, cast, Optional, TYPE_CHECKING, TypeVar
 from typing_extensions import Never
 from weakref import WeakKeyDictionary
@@ -89,10 +89,13 @@ from .base import (
 from .constant import ConstantVariable
 
 
-try:
-    from torch.distributed.fsdp._fully_shard import _fsdp_param_group
-except ModuleNotFoundError:
-    _fsdp_param_group = None  # type: ignore[assignment]
+@functools.cache
+def _get_fsdp_param_group() -> ModuleType | None:
+    try:
+        from torch.distributed.fsdp._fully_shard import _fsdp_param_group
+    except ModuleNotFoundError:
+        return None
+    return _fsdp_param_group
 
 
 if TYPE_CHECKING:
@@ -1438,7 +1441,7 @@ class UserMethodVariable(UserFunctionVariable):
                     tx, self.fn.__name__, list(args), kwargs, constant=self.is_constant
                 )
         elif (
-            _fsdp_param_group is not None
+            (_fsdp_param_group := _get_fsdp_param_group()) is not None
             and self.fn is _fsdp_param_group.FSDPParamGroup.use_training_state  # type: ignore[attr-defined]
         ):
             return variables.TorchCtxManagerClassVariable(self.fn).call_function(

@@ -1,4 +1,4 @@
-"""Repackage one pinned CPU wheel with the reviewed Dynamo Python change.
+"""Repackage one pinned CPU wheel with the reviewed Dynamo Python changes.
 
 This preserves the upstream native build and wheel metadata. The build tag
 identifies a downstream Python-only revision; it is not a native rebuild.
@@ -17,10 +17,13 @@ import zipfile
 from pathlib import Path
 
 BASE_SHA256 = "ee40b8a4b4b2cf0670c6fd4f35a7ef23871af956fecb238fbf5da15a72650b1d"
-BASE_SOURCE_SHA256 = "3e1725a8609e088e7e7a5bfc786a79bf6596f10efe06ae37b2c92d2dc6a1995a"
-BUILD = "1rmcp20261103"
+BASE_SOURCES = {
+    "torch/_dynamo/trace_rules.py": "3e1725a8609e088e7e7a5bfc786a79bf6596f10efe06ae37b2c92d2dc6a1995a",
+    "torch/_dynamo/variables/functions.py": "2bad7a82f1c2a9ce62674f9f1089f61f72d8ea32ae4135d4e309c8456222de1e",
+    "torch/_dynamo/variables/torch.py": "9e5e8be5f35a590cba52b47d727cb8ecde5bffc12dac84a9fea5be2b4a2e5579",
+}
+BUILD = "2rmcp20261103"
 FILENAME = f"torch-2.10.0+cpu-{BUILD}-cp312-cp312-manylinux_2_28_x86_64.whl"
-SOURCE_MEMBER = "torch/_dynamo/trace_rules.py"
 WHEEL_MEMBER = "torch-2.10.0+cpu.dist-info/WHEEL"
 RECORD_MEMBER = "torch-2.10.0+cpu.dist-info/RECORD"
 
@@ -36,7 +39,9 @@ def record_hash(data: bytes) -> str:
     ).decode("ascii")
 
 
-def repackage(original: Path, source: Path, destination: Path) -> dict[str, object]:
+def repackage(
+    original: Path, source_root: Path, destination: Path
+) -> dict[str, object]:
     if file_sha256(original) != BASE_SHA256:
         raise ValueError(
             "Input must be the pinned upstream Linux x86_64 CPython 3.12 CPU wheel"
@@ -44,20 +49,25 @@ def repackage(original: Path, source: Path, destination: Path) -> dict[str, obje
     if destination.name != FILENAME:
         raise ValueError(f"Destination filename must be {FILENAME}")
     with zipfile.ZipFile(original) as base:
-        baseline = base.read(SOURCE_MEMBER)
-        if hashlib.sha256(baseline).hexdigest() != BASE_SOURCE_SHA256:
-            raise ValueError(
-                "Pinned upstream trace_rules.py differs from the reviewed baseline"
-            )
-        changed = source.read_bytes()
-        if changed == baseline:
-            raise ValueError("The source change is missing")
-        compile(changed, SOURCE_MEMBER, "exec")
+        replacements = {}
+        source_hashes = {}
+        for member, expected in BASE_SOURCES.items():
+            baseline = base.read(member)
+            if hashlib.sha256(baseline).hexdigest() != expected:
+                raise ValueError(
+                    f"Pinned upstream {member} differs from the reviewed baseline"
+                )
+            changed = (source_root / member).read_bytes()
+            if changed == baseline:
+                raise ValueError(f"The source change in {member} is missing")
+            compile(changed, member, "exec")
+            replacements[member] = changed
+            source_hashes[member] = hashlib.sha256(changed).hexdigest()
         wheel = base.read(WHEEL_MEMBER)
         if b"Build:" in wheel:
             raise ValueError("Unexpected existing wheel build tag")
         wheel += b"Build: " + BUILD.encode("ascii") + b"\n"
-        replacements = {SOURCE_MEMBER: changed, WHEEL_MEMBER: wheel}
+        replacements[WHEEL_MEMBER] = wheel
         rows = list(csv.reader(io.StringIO(base.read(RECORD_MEMBER).decode("utf-8"))))
         seen: set[str] = set()
         for row in rows:
@@ -85,7 +95,7 @@ def repackage(original: Path, source: Path, destination: Path) -> dict[str, obje
     return {
         "upstream_wheel_sha256": BASE_SHA256,
         "wheel_sha256": file_sha256(destination),
-        "source_sha256": hashlib.sha256(changed).hexdigest(),
+        "source_sha256": source_hashes,
         "wheel_filename": FILENAME,
         "changed_members": sorted(replacements),
         "native_build": "Original upstream CPU build, unchanged",
@@ -97,12 +107,16 @@ def main() -> None:
     parser.add_argument("original", type=Path)
     parser.add_argument("destination", type=Path)
     parser.add_argument(
-        "--source",
+        "--source-root",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / SOURCE_MEMBER,
+        default=Path(__file__).resolve().parents[1],
     )
     args = parser.parse_args()
-    print(json.dumps(repackage(args.original, args.source, args.destination), indent=2))
+    print(
+        json.dumps(
+            repackage(args.original, args.source_root, args.destination), indent=2
+        )
+    )
 
 
 if __name__ == "__main__":
