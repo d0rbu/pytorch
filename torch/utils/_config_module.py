@@ -244,19 +244,20 @@ def get_assignments_with_compile_ignored_comments(module: ModuleType) -> set[str
     prev_name = ""
 
     for token in tokens:
-        if token.type == tokenize.COMMENT:
+        token_type = token.type
+        if token_type == tokenize.COMMENT:
             prev_name = ""
             maybe_current = token.string.strip()
             if COMPILE_IGNORED_MARKER in maybe_current:
                 if current_comment != ("", -1):
                     raise AssertionError(f"unconsumed {COMPILE_IGNORED_MARKER}")
                 current_comment = maybe_current, token.start[0]
-        elif token.type == tokenize.NAME:
+        elif token_type == tokenize.NAME:
             # Only accept the first name token, to handle if you have
             # something like foo: Bar = ...
             if not prev_name:
                 prev_name = token.string
-        elif token.type == tokenize.OP and token.string == "=":
+        elif token_type == tokenize.OP and token.string == "=":
             # Check if the current assignment follows a comment
             # with COMPILE_IGNORED_MARKER
             if (
