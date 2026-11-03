@@ -42,7 +42,7 @@ def get_source(stacklevel: int) -> str:
     Use stacklevel=2 to get the caller's caller's source
     etc.
     """
-    frame = inspect.getframeinfo(sys._getframe(stacklevel))
+    frame = inspect.getframeinfo(sys._getframe(stacklevel), context=0)
     source = f"{frame.filename}:{frame.lineno}"
     return source
 
