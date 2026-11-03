@@ -1,5 +1,6 @@
 # mypy: allow-untyped-defs
 import dataclasses
+import importlib.machinery
 import inspect
 import sys
 from collections.abc import Callable, Iterable, Iterator
@@ -45,7 +46,10 @@ def get_source(stacklevel: int) -> str:
     frame = sys._getframe(stacklevel)
     try:
         lineno = frame.f_lineno
-        filename = inspect.getsourcefile(frame) or inspect.getfile(frame)
+        filename = frame.f_code.co_filename
+        # Only bytecode filenames can resolve to a different source filename.
+        if filename.endswith(tuple(importlib.machinery.BYTECODE_SUFFIXES)):
+            filename = inspect.getsourcefile(frame) or inspect.getfile(frame)
         return f"{filename}:{lineno}"
     finally:
         del frame

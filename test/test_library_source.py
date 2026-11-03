@@ -12,6 +12,15 @@ from torch._library.utils import get_source
 
 
 class TestLibrarySource(unittest.TestCase):
+    def test_ordinary_frame_filename_needs_no_source_resolution(self):
+        with mock.patch.object(
+            inspect, "getsourcefile", wraps=inspect.getsourcefile
+        ) as resolver:
+            line = sys._getframe().f_lineno + 1
+            actual = get_source(1)
+        self.assertEqual(actual, f"{__file__}:{line}")
+        resolver.assert_not_called()
+
     def test_no_unused_frame_info(self):
         with mock.patch.object(
             inspect, "getframeinfo", wraps=inspect.getframeinfo
@@ -51,13 +60,30 @@ class TestLibrarySource(unittest.TestCase):
             ),
             self.assertRaisesRegex(RuntimeError, "source resolution"),
         ):
-            get_source(1)
+            namespace = {"get_source": get_source}
+            exec(  # noqa: S102 - Exercise actual bytecode filename resolution.
+                compile(
+                    "def caller():\n    return get_source(1)\n",
+                    "/missing/resolution-error.pyc",
+                    "exec",
+                ),
+                namespace,
+            )
+            namespace["caller"]()
 
     def test_locations_and_source_resolution(self):
         line = sys._getframe().f_lineno + 1
         actual = get_source(1)
         self.assertEqual(actual, f"{__file__}:{line}")
-        for filename in ("<synthetic>", "/missing/library-source.py"):
+        for filename in (
+            "<synthetic>",
+            "/missing/library-source.py",
+            "/missing/library-source.pyc",
+            "relative-source.py",
+            "/missing/native.so",
+            "/missing/library-µ.py",
+            "",
+        ):
             namespace = {"get_source": get_source}
             exec(  # noqa: S102 - Fixed test code needs a synthetic co_filename.
                 compile("def caller():\n    return get_source(1)\n", filename, "exec"),
