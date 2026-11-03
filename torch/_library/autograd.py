@@ -21,15 +21,16 @@ class Info:
     _setup_context_fn: Optional[Callable]
 
 
+@dataclass
+class _AutogradMetadata:
+    keyset: _C.DispatchKeySet
+    keyword_only_args: dict[str, Any]
+
+
 def make_autograd_impl(op: _ops.OpOverload, info: InfoProtocol) -> Callable:
     name: str = f"GeneratedBackwardFor_{op._namespace}_{op._opname}_{op._overloadname}"
 
     has_kwarg_only_args = utils.has_kwarg_only_args(op._schema)
-
-    @dataclass
-    class Metadata:
-        keyset: _C.DispatchKeySet
-        keyword_only_args: dict[str, Any]
 
     def forward_no_grad(*args):
         metadata = args[-1]
@@ -107,9 +108,13 @@ def make_autograd_impl(op: _ops.OpOverload, info: InfoProtocol) -> Callable:
     # rest of the args (even if specified as kwargs) as args.
     def autograd_impl(keyset, *args, **keyword_only_args):
         if _C.is_grad_enabled() and _C._any_requires_grad(*args):
-            result = Generated.apply(*args, Metadata(keyset, keyword_only_args))  # type: ignore[attr-defined]
+            result = Generated.apply(
+                *args, _AutogradMetadata(keyset, keyword_only_args)
+            )  # type: ignore[attr-defined]
         else:
-            result = forward_no_grad(*args, Metadata(keyset, keyword_only_args))
+            result = forward_no_grad(
+                *args, _AutogradMetadata(keyset, keyword_only_args)
+            )
         return result
 
     return autograd_impl
