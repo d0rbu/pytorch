@@ -1,4 +1,4 @@
-"""Repackage one pinned CPU wheel with the reviewed Dynamo and registration-location changes.
+"""Repackage one pinned CPU wheel with the reviewed Dynamo and Python-owned registration changes.
 
 This preserves the upstream native build and wheel metadata. The build tag
 identifies a downstream Python-only revision; it is not a native rebuild.
@@ -18,12 +18,13 @@ from pathlib import Path
 
 BASE_SHA256 = "ee40b8a4b4b2cf0670c6fd4f35a7ef23871af956fecb238fbf5da15a72650b1d"
 BASE_SOURCES = {
+    "torch/library.py": "adb13397e5604630cdec2a7cc7be38d78ace93759aedff74bdf0f7434e7c72b1",
     "torch/_library/utils.py": "53ce827f4fe5c83e1cc81461d5b687104dc462edd9893fd0f29d608fa9d7ce7b",
     "torch/_dynamo/trace_rules.py": "3e1725a8609e088e7e7a5bfc786a79bf6596f10efe06ae37b2c92d2dc6a1995a",
     "torch/_dynamo/variables/functions.py": "2bad7a82f1c2a9ce62674f9f1089f61f72d8ea32ae4135d4e309c8456222de1e",
     "torch/_dynamo/variables/torch.py": "9e5e8be5f35a590cba52b47d727cb8ecde5bffc12dac84a9fea5be2b4a2e5579",
 }
-BUILD = "3rmcp20261103"
+BUILD = "4rmcp20261103"
 FILENAME = f"torch-2.10.0+cpu-{BUILD}-cp312-cp312-manylinux_2_28_x86_64.whl"
 WHEEL_MEMBER = "torch-2.10.0+cpu.dist-info/WHEEL"
 RECORD_MEMBER = "torch-2.10.0+cpu.dist-info/RECORD"

@@ -180,11 +180,16 @@ class Library:
         r"""Registers the fake impl for an operator defined in the library."""
 
         source = torch._library.utils.get_source(_stacklevel + 1)
-        frame = sys._getframe(_stacklevel)
-        caller_module = inspect.getmodule(frame)
-        # Can be none if you call register_fake from somewhere there isn't a module
-        # (e.g. __main__)
-        caller_module_name = None if caller_module is None else caller_module.__name__
+        qualname = f"{self.ns}::{op_name}"
+        if self.m is not None and qualname in self._op_defs:
+            # This library owns both the Python definition and its fake kernel.
+            # C++ pystub checks cannot apply during that shared lifetime.
+            caller_module_name = None
+        else:
+            frame = sys._getframe(_stacklevel)
+            caller_module = inspect.getmodule(frame)
+            # Can be none when registration has no associated module.
+            caller_module_name = None if caller_module is None else caller_module.__name__
 
         # TODO(rzou): We're gonna need to stage this change with torchvision,
         # since torchvision is github first.
@@ -193,7 +198,6 @@ class Library:
         ):
             caller_module_name = None
 
-        qualname = f"{self.ns}::{op_name}"
         entry = torch._library.simple_registry.singleton.find(qualname)
         if caller_module_name is not None:
             func_to_register = _check_pystubs_once(fn, qualname, caller_module_name)
