@@ -3671,20 +3671,25 @@ def _recompile_re() -> None:
     )
 
 
-def add(import_name: str) -> None:
+def _append_skip_dir(import_name: str) -> bool:
     if isinstance(import_name, types.ModuleType):
-        return add(import_name.__name__)
+        return _append_skip_dir(import_name.__name__)
     assert isinstance(import_name, str)
     from importlib.util import find_spec
 
     module_spec = find_spec(import_name)
     if not module_spec:
-        return
+        return False
     origin = module_spec.origin
     if origin is None:
-        return
+        return False
     SKIP_DIRS.append(_strip_init_py(origin))
-    _recompile_re()
+    return True
+
+
+def add(import_name: str) -> None:
+    if _append_skip_dir(import_name):
+        _recompile_re()
 
 
 @dataclasses.dataclass
@@ -3855,8 +3860,9 @@ def check(obj: Any, is_inlined_call: bool = False) -> bool:
 
 
 # skip common third party libs
+# Build the initial regex once after collecting optional third-party paths.
 for _name in THIRDPARTY_SKIPLIST:
-    add(_name)
+    _append_skip_dir(_name)
 
 _recompile_re()
 

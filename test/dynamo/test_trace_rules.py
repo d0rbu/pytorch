@@ -3,6 +3,10 @@ import dataclasses
 import importlib
 import inspect
 import math
+import re
+import subprocess
+import sys
+import textwrap
 import types
 import unittest
 import warnings
@@ -322,6 +326,89 @@ class TraceRuleTests(torch._dynamo.test_case.TestCase):
         )
         self.assertTrue(len(x) == 0, msg1)
         self.assertTrue(len(y) == 0, msg2)
+
+    def test_skip_dirs_compile_once_during_import(self):
+        script = textwrap.dedent(
+            """\
+            import json
+            import sys
+
+            recompiles = 0
+
+            def observed(frame, event, argument):
+                global recompiles
+                if event == 'call' and frame.f_code.co_name == '_recompile_re' and frame.f_code.co_filename.endswith('/torch/_dynamo/trace_rules.py'):
+                    recompiles += 1
+
+            sys.setprofile(observed)
+            import torch
+            from torch._dynamo import trace_rules
+            sys.setprofile(None)
+            print(json.dumps({'recompiles': recompiles, 'source': trace_rules.__file__, 'torch_version': torch.__version__}), flush=True)
+            assert recompiles == 1, f'Expected one finalized skip-directory regex, observed {recompiles} rebuilds'
+            """
+        )
+        actual = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True, check=False
+        )
+        self.assertEqual(actual.returncode, 0, actual.stdout + actual.stderr)
+
+    def test_skip_dir_add_recompiles_immediately(self):
+        rules = torch._dynamo.trace_rules
+        directory = "/tmp/skip (regexp)+[chars]/"
+        for argument in ("rmcp_skip_test", types.ModuleType("rmcp_skip_test")):
+            with (
+                self.subTest(argument=argument),
+                unittest.mock.patch.object(rules, "SKIP_DIRS", []),
+                unittest.mock.patch.object(
+                    rules, "SKIP_DIRS_RE", re.compile("match nothing^")
+                ),
+                unittest.mock.patch(
+                    "importlib.util.find_spec",
+                    return_value=importlib.machinery.ModuleSpec(
+                        "rmcp_skip_test", None, origin=directory + "__init__.py"
+                    ),
+                ) as find,
+                unittest.mock.patch.object(
+                    rules, "_recompile_re", wraps=rules._recompile_re
+                ) as rebuild,
+            ):
+                self.assertIsNone(rules.add(argument))
+                self.assertEqual(rules.SKIP_DIRS, [directory])
+                find.assert_called_once_with("rmcp_skip_test")
+                rebuild.assert_called_once_with()
+                self.assertIsNotNone(rules.SKIP_DIRS_RE.match(directory + "module.py"))
+                self.assertIsNone(
+                    rules.SKIP_DIRS_RE.match(directory[:-1] + "-other/module.py")
+                )
+
+    def test_skip_dir_add_missing_namespace_and_errors(self):
+        rules = torch._dynamo.trace_rules
+        for spec in (None, importlib.machinery.ModuleSpec("rmcp_namespace", None)):
+            with (
+                self.subTest(spec=spec),
+                unittest.mock.patch.object(rules, "SKIP_DIRS", []),
+                unittest.mock.patch("importlib.util.find_spec", return_value=spec),
+                unittest.mock.patch.object(rules, "_recompile_re") as rebuild,
+            ):
+                pattern = rules.SKIP_DIRS_RE
+                self.assertIsNone(rules.add("rmcp_namespace"))
+                self.assertEqual(rules.SKIP_DIRS, [])
+                self.assertIs(rules.SKIP_DIRS_RE, pattern)
+                rebuild.assert_not_called()
+        failure = RuntimeError("failed module lookup")
+        with (
+            unittest.mock.patch.object(rules, "SKIP_DIRS", []),
+            unittest.mock.patch("importlib.util.find_spec", side_effect=failure),
+            unittest.mock.patch.object(rules, "_recompile_re") as rebuild,
+        ):
+            pattern = rules.SKIP_DIRS_RE
+            with self.assertRaises(RuntimeError) as caught:
+                rules.add("rmcp_failure")
+            self.assertIs(caught.exception, failure)
+            self.assertEqual(rules.SKIP_DIRS, [])
+            self.assertIs(rules.SKIP_DIRS_RE, pattern)
+            rebuild.assert_not_called()
 
     # We are using python function and module string names for these inlinelist,
     # this unit test is to make sure the functions/modules can be correctly imported
