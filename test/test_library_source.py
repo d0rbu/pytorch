@@ -1,7 +1,9 @@
 # Owner(s): ["module: custom-operators"]
+import gc
 import inspect
 import linecache
 import sys
+import types
 import unittest
 from unittest import mock
 
@@ -10,6 +12,47 @@ from torch._library.utils import get_source
 
 
 class TestLibrarySource(unittest.TestCase):
+    def test_no_unused_frame_info(self):
+        with mock.patch.object(
+            inspect, "getframeinfo", wraps=inspect.getframeinfo
+        ) as info:
+            line = sys._getframe().f_lineno + 1
+            actual = get_source(1)
+        self.assertEqual(actual, f"{__file__}:{line}")
+        info.assert_not_called()
+
+    def test_releases_frames_and_preserves_resolution_errors(self):
+        def retained_helper_frames():
+            return {
+                id(value)
+                for value in gc.get_objects()
+                if type(value) is types.FrameType
+                and value.f_code is get_source.__code__
+            }
+
+        enabled = gc.isenabled()
+        before = retained_helper_frames()
+        gc.disable()
+        try:
+            for level in (0, -1):
+                for _ in range(16):
+                    self.assertTrue(
+                        get_source(level).startswith(
+                            inspect.getsourcefile(get_source) + ":"
+                        )
+                    )
+            self.assertEqual(retained_helper_frames(), before)
+        finally:
+            if enabled:
+                gc.enable()
+        with (
+            mock.patch.object(
+                inspect, "getsourcefile", side_effect=RuntimeError("source resolution")
+            ),
+            self.assertRaisesRegex(RuntimeError, "source resolution"),
+        ):
+            get_source(1)
+
     def test_locations_and_source_resolution(self):
         line = sys._getframe().f_lineno + 1
         actual = get_source(1)

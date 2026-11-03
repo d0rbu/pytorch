@@ -24,7 +24,7 @@ BASE_SOURCES = {
     "torch/_dynamo/variables/functions.py": "2bad7a82f1c2a9ce62674f9f1089f61f72d8ea32ae4135d4e309c8456222de1e",
     "torch/_dynamo/variables/torch.py": "9e5e8be5f35a590cba52b47d727cb8ecde5bffc12dac84a9fea5be2b4a2e5579",
 }
-BUILD = "4rmcp20261103"
+BUILD = "5rmcp20261103"
 FILENAME = f"torch-2.10.0+cpu-{BUILD}-cp312-cp312-manylinux_2_28_x86_64.whl"
 WHEEL_MEMBER = "torch-2.10.0+cpu.dist-info/WHEEL"
 RECORD_MEMBER = "torch-2.10.0+cpu.dist-info/RECORD"
