@@ -1088,7 +1088,10 @@ def _must_dispatch_in_python(args, kwargs):
 
 
 def _has_script_object_arg(schema: torch.FunctionSchema) -> bool:
-    return any(isinstance(arg.type, torch.ClassType) for arg in schema.arguments)
+    for arg in schema.arguments:
+        if isinstance(arg.type, torch.ClassType):
+            return True
+    return False
 
 
 # OpOverloadPacket class contains pointer to a base unresolved operator that doesn't correspond to a specific operator
