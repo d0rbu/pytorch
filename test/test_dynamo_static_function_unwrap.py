@@ -1,7 +1,12 @@
 # Owner(s): ["module: dynamo"]
 import functools
 import inspect
+import math
+import types
 import unittest
+from unittest.mock import patch
+
+import torch._dynamo.utils as dynamo_utils
 
 from torch._dynamo.utils import (
     unwrap_if_wrapper,
@@ -15,6 +20,28 @@ class TestStaticFunctionUnwrap(unittest.TestCase):
         self.assertIs(actual, expected)
         self.assertEqual(actual_attribute, attribute)
         self.assertIs(unwrap_if_wrapper(function), expected)
+
+    def test_exact_builtin_functions_and_bound_methods(self):
+        for function in [len, pow, math.sin, {}.get, [].append, dict.fromkeys]:
+            with self.subTest(function=function):
+                self.assertIs(type(function), types.BuiltinFunctionType)
+                self.check_result(function, function, None)
+
+    def test_builtin_wrapper_attributes_cannot_be_added(self):
+        with self.assertRaisesRegex(TypeError, "immutable type"):
+            types.BuiltinFunctionType._torchdynamo_inline = object()
+        for function in [len, {}.get, dict.fromkeys]:
+            with self.subTest(function=function):
+                with self.assertRaises(AttributeError):
+                    function._torchdynamo_inline = object()
+
+    def test_exact_builtin_skips_static_lookup(self):
+        with patch.object(
+            dynamo_utils.inspect,
+            "getattr_static",
+            side_effect=AssertionError("Exact builtin performed static lookup"),
+        ):
+            self.check_result(len, len, None)
 
     def test_plain_function_and_false_values(self):
         def function():

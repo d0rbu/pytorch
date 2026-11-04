@@ -1230,6 +1230,9 @@ def unwrap_if_wrapper(fn: Any) -> Any:
 
 
 def unwrap_with_attr_name_if_wrapper(fn: Any) -> tuple[Any, Optional[str]]:
+    if type(fn) is types.BuiltinFunctionType:
+        # Exact builtin functions have no instance dictionary or mutable type.
+        return fn, None
     if type(fn) is types.FunctionType and not dict.__len__(fn.__dict__):
         # Bypass subclass hooks; exact functions have no class-level wrapper.
         return fn, None
