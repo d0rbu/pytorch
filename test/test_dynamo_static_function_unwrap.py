@@ -37,6 +37,9 @@ class TestStaticFunctionUnwrap(unittest.TestCase):
 
     def test_dict_subclass_does_not_dispatch_overridden_get(self):
         class Dictionary(dict):
+            def __len__(self):
+                raise AssertionError("Overridden dictionary length was invoked")
+
             def __contains__(self, key):
                 raise AssertionError("Overridden dictionary contains was invoked")
 
@@ -107,6 +110,28 @@ class TestStaticFunctionUnwrap(unittest.TestCase):
         actual, attribute = unwrap_with_attr_name_if_wrapper(function)
         self.assertIs(actual, function)
         self.assertEqual(attribute, "_torchdynamo_inline")
+
+    def test_nonstandard_dictionary_key_keeps_original_lookup_order(self):
+        class Key(str):
+            __slots__ = ("calls",)
+            __hash__ = str.__hash__
+
+            def __init__(self, _value):
+                self.calls = 0
+
+            def __eq__(self, other):
+                self.calls += 1
+                return self.calls == 1 and str.__eq__(self, other)
+
+        def function():
+            pass
+
+        key = Key("_torchdynamo_inline")
+        function.__dict__ = {key: object()}
+        actual, attribute = unwrap_with_attr_name_if_wrapper(function)
+        self.assertIs(actual, function)
+        self.assertEqual(attribute, "_torchdynamo_inline")
+        self.assertEqual(key.calls, 2)
 
     def test_other_object_kinds_retain_original_behavior(self):
         class Callable:

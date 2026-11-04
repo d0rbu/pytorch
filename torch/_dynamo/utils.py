@@ -1230,10 +1230,8 @@ def unwrap_if_wrapper(fn: Any) -> Any:
 
 
 def unwrap_with_attr_name_if_wrapper(fn: Any) -> tuple[Any, Optional[str]]:
-    if type(fn) is types.FunctionType and not dict.__contains__(
-        fn.__dict__, "_torchdynamo_inline"
-    ):
-        # Exact Python functions cannot have a class-level wrapper descriptor.
+    if type(fn) is types.FunctionType and not dict.__len__(fn.__dict__):
+        # Bypass subclass hooks; exact functions have no class-level wrapper.
         return fn, None
     # TODO(anijain2305) - Investigate if we can get rid of this function
     # unpack @torch._dynamo.optimize()(fn) wrapped function
