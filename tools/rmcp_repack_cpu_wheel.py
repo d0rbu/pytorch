@@ -18,6 +18,7 @@ from pathlib import Path
 
 BASE_SHA256 = "ee40b8a4b4b2cf0670c6fd4f35a7ef23871af956fecb238fbf5da15a72650b1d"
 BASE_SOURCES = {
+    "torch/_dynamo/utils.py": "caa683c026e4e7aa66bacf89e2eedd5b21cda2d2c854b28ab5f2d3154e1c00df",
     "torch/utils/_config_module.py": "09b90cade656c93472829c75ea2a1c173584ef3a91af2e75aafe983a1fbc0c46",
     "torch/library.py": "adb13397e5604630cdec2a7cc7be38d78ace93759aedff74bdf0f7434e7c72b1",
     "torch/_library/utils.py": "53ce827f4fe5c83e1cc81461d5b687104dc462edd9893fd0f29d608fa9d7ce7b",
@@ -26,7 +27,7 @@ BASE_SOURCES = {
     "torch/_dynamo/variables/functions.py": "2bad7a82f1c2a9ce62674f9f1089f61f72d8ea32ae4135d4e309c8456222de1e",
     "torch/_dynamo/variables/torch.py": "9e5e8be5f35a590cba52b47d727cb8ecde5bffc12dac84a9fea5be2b4a2e5579",
 }
-BUILD = "8rmcp20261103"
+BUILD = "9rmcp20261104"
 FILENAME = f"torch-2.10.0+cpu-{BUILD}-cp312-cp312-manylinux_2_28_x86_64.whl"
 WHEEL_MEMBER = "torch-2.10.0+cpu.dist-info/WHEEL"
 RECORD_MEMBER = "torch-2.10.0+cpu.dist-info/RECORD"

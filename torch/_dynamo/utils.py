@@ -1230,6 +1230,15 @@ def unwrap_if_wrapper(fn: Any) -> Any:
 
 
 def unwrap_with_attr_name_if_wrapper(fn: Any) -> tuple[Any, Optional[str]]:
+    if type(fn) is types.FunctionType:
+        # Exact Python functions have no class-level wrapper descriptor. Bypass
+        # general static lookup while retaining dict.get for dict subclasses.
+        if dict.get(fn.__dict__, "_torchdynamo_inline", False):
+            # A custom value's truth test can change the function dictionary.
+            return dict.get(
+                fn.__dict__, "_torchdynamo_inline", fn
+            ), "_torchdynamo_inline"
+        return fn, None
     # TODO(anijain2305) - Investigate if we can get rid of this function
     # unpack @torch._dynamo.optimize()(fn) wrapped function
     if is_function(fn) and inspect.getattr_static(fn, "_torchdynamo_inline", False):
