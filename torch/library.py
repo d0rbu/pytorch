@@ -176,7 +176,15 @@ class Library:
         _defs.add(qualname)
         return result
 
-    def _register_fake(self, op_name, fn, _stacklevel=1, *, allow_override=False):
+    def _register_fake(
+        self,
+        op_name,
+        fn,
+        _stacklevel=1,
+        *,
+        allow_override=False,
+        _caller_module_name: str | None = None,
+    ):
         r"""Registers the fake impl for an operator defined in the library."""
 
         source = torch._library.utils.get_source(_stacklevel + 1)
@@ -185,6 +193,9 @@ class Library:
             # This library owns both the Python definition and its fake kernel.
             # C++ pystub checks cannot apply during that shared lifetime.
             caller_module_name = None
+        elif _caller_module_name is not None:
+            # Internal registration sites can supply their declaring module.
+            caller_module_name = _caller_module_name
         else:
             frame = sys._getframe(_stacklevel)
             caller_module = inspect.getmodule(frame)
@@ -958,6 +969,7 @@ def register_fake(
     lib: Library | None = None,
     _stacklevel: int = 1,
     allow_override: bool = False,
+    _caller_module_name: str | None = None,
 ):
     r"""Register a FakeTensor implementation ("fake impl") for this operator.
 
@@ -1074,9 +1086,18 @@ def register_fake(
             _keep_alive.append(use_lib)
         else:
             use_lib = lib
-        use_lib._register_fake(
-            op_name, func, _stacklevel=stacklevel + 1, allow_override=allow_override
-        )
+        if _caller_module_name is None:
+            use_lib._register_fake(
+                op_name, func, _stacklevel=stacklevel + 1, allow_override=allow_override
+            )
+        else:
+            use_lib._register_fake(
+                op_name,
+                func,
+                _stacklevel=stacklevel + 1,
+                allow_override=allow_override,
+                _caller_module_name=_caller_module_name,
+            )
         return func
 
     if func is None:

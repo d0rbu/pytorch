@@ -29,7 +29,7 @@ from torch.distributed.distributed_c10d import (
 logger = logging.getLogger(__name__)
 
 
-@torch.library.register_fake("_dtensor::shard_dim_alltoall")
+@torch.library.register_fake("_dtensor::shard_dim_alltoall", _caller_module_name=__name__)
 def _shard_dim_alltoall_meta(input, gather_dim, shard_dim, group_name):
     group_size = _get_group_size_by_name(group_name)
     stacked_list = [torch.empty_like(input) for _ in range(group_size)]
