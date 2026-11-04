@@ -3035,6 +3035,9 @@ Load string represented torch objects.
 
 def load_object(name: str) -> Any:
     try:
+        if type(name) is str and "#" not in name:
+            val = _load_obj_from_str(name)
+            return unwrap_if_wrapper(val)
         x = name.split("#")
         if len(x) == 2:
             obj = _load_obj_from_str(x[0])
